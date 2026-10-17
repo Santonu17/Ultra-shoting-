@@ -1,0 +1,47 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retro Archery Arcade</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="game">
+    <header>
+      <div>
+        <p class="eyebrow">PIXEL ARCADE • PLAYER 1</p>
+        <h1>RETRO <span>ARCHERY</span></h1>
+      </div>
+      <button id="soundBtn">🔊 SOUND ON</button>
+    </header>
+
+    <section class="hud">
+      <div>SCORE<strong id="score">0000</strong></div>
+      <div>LEVEL<strong id="level">01</strong></div>
+      <div>ARROWS<strong id="arrows">10</strong></div>
+      <div>DISTANCE<strong id="distance">1x</strong></div>
+    </section>
+
+    <div class="arena">
+      <canvas id="gameCanvas" width="960" height="540"></canvas>
+      <div id="overlay" class="overlay">
+        <h2 id="overlayTitle">TAKE YOUR SHOT!</h2>
+        <p id="overlayText">Hit the target. Earn points. Level up!</p>
+        <button id="startBtn">▶ START GAME</button>
+      </div>
+    </div>
+
+    <section class="instructions">
+      <h3>HOW TO PLAY</h3>
+      <p>🎯 Move your mouse or finger to aim.</p>
+      <p>🏹 Click, tap, or press SPACE to shoot.</p>
+      <p>⭐ Hit the target to earn points and unlock new levels.</p>
+      <p id="message">Ready when you are!</p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
