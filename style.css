@@ -34,6 +34,12 @@ header {
   margin-bottom: 18px;
 }
 
+.buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .eyebrow {
   color: #7be0b2;
   font-size: 18px;
@@ -152,6 +158,33 @@ canvas {
   color: #7be0b2;
   border-top: 2px dashed #526789;
   padding-top: 12px;
+}
+
+.game.full {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 0;
+  box-shadow: none;
+}
+
+.game.full .arena {
+  width: 100%;
+  max-width: calc((100vh - 260px) * 16 / 9);
+  max-width: calc((100dvh - 260px) * 16 / 9);
+  margin: 0 auto;
+}
+
+.game.full .instructions h3,
+.game.full .instructions p:not(#message) {
+  display: none;
 }
 
 @media (max-width: 600px) {

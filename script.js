@@ -7,7 +7,7 @@ const W = canvas.width;
 const H = canvas.height;
 
 let score = 0;
-let level = 1;
+let level = loadLevel();
 let arrows = 10;
 let running = false;
 let soundOn = true;
@@ -22,8 +22,33 @@ let timeLeft = 60;
 let timerId = null;
 let countdownActive = false;
 let countdownValue = 3;
-let gameOver = false;
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
 const PREVIEW_STEPS = 40;
+
+function loadLevel() {
+  try {
+    const n = parseInt(localStorage.getItem("archeryLevel"), 10);
+    return n > 0 ? n : 1;
+  } catch (e) {
+    return 1;
+  }
+}
+
+function saveLevel() {
+  try {
+    localStorage.setItem("archeryLevel", level);
+  } catch (e) {}
+}
+
+function goal() {
+  return 150 + level * 50;
+}
+
+function roundTime() {
+  return Math.max(30, 60 - (level - 1) * 2);
+}
 
 function target() {
   const distance = 1 + Math.floor((level - 1) / 2);
@@ -59,7 +84,8 @@ function beep(freq = 440) {
 }
 
 function updateHUD() {
-  $("score").textContent = String(score).padStart(4, "0");
+  $("score").textContent =
+    String(score).padStart(4, "0") + "/" + String(goal()).padStart(4, "0");
   $("level").textContent = String(level).padStart(2, "0");
   $("arrows").textContent = arrows;
   $("distance").textContent = target().distance + "x";
@@ -301,16 +327,39 @@ function drawCountdown() {
   ctx.textBaseline = "alphabetic";
 }
 
-function endRound(title) {
+function endRound(title, text, button) {
   running = false;
-  gameOver = true;
   arrow = null;
   clearInterval(timerId);
 
   $("overlayTitle").textContent = title;
-  $("overlayText").textContent = "Final score: " + score;
-  $("startBtn").textContent = "↻ PLAY AGAIN";
+  $("overlayText").textContent = text;
+  $("startBtn").textContent = button;
   $("overlay").classList.remove("hidden");
+}
+
+function failRound(title) {
+  endRound(
+    title,
+    "Score " + score + "/" + goal() + " - retry level " + level,
+    "↻ RETRY LEVEL"
+  );
+}
+
+function clearLevel() {
+  const earned = score;
+
+  level++;
+  saveLevel();
+  score = 0;
+  beep(1000);
+  updateHUD();
+
+  endRound(
+    "LEVEL CLEARED!",
+    "Score " + earned + " - next goal " + goal() + " points",
+    "▶ NEXT LEVEL"
+  );
 }
 
 function startTimer() {
@@ -322,7 +371,7 @@ function startTimer() {
     timeLeft--;
     updateHUD();
 
-    if (timeLeft <= 0) endRound("TIME UP!");
+    if (timeLeft <= 0) failRound("TIME UP!");
   }, 1000);
 }
 
@@ -373,6 +422,8 @@ function shoot() {
 }
 
 function finishShot(hit, x, y) {
+  let cleared = false;
+
   if (hit) {
     const t = target();
     const d = Math.hypot(x - t.x, y - t.y);
@@ -385,12 +436,7 @@ function finishShot(hit, x, y) {
     message("HIT! +" + points);
     beep(800);
 
-    if (score >= level * 250) {
-      level++;
-      arrows = Math.min(10, arrows + 3);
-      message("LEVEL UP! LEVEL " + level);
-      beep(1000);
-    }
+    if (score >= goal()) cleared = true;
   } else {
     message("MISSED! Try again.");
     beep(150);
@@ -399,7 +445,8 @@ function finishShot(hit, x, y) {
   arrow = null;
   updateHUD();
 
-  if (arrows <= 0) endRound("ROUND OVER!");
+  if (cleared) clearLevel();
+  else if (arrows <= 0) failRound("ROUND OVER!");
 }
 
 function updateArrow() {
@@ -469,21 +516,58 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
+function clampAim() {
+  aim.x = Math.max(190, Math.min(W - 20, aim.x));
+  aim.y = Math.max(50, Math.min(420, aim.y));
+}
+
 function updateAim(event) {
   const rect = canvas.getBoundingClientRect();
 
   aim.x = (event.clientX - rect.left) * W / rect.width;
   aim.y = (event.clientY - rect.top) * H / rect.height;
 
-  aim.x = Math.max(190, Math.min(W - 20, aim.x));
-  aim.y = Math.max(50, Math.min(420, aim.y));
+  clampAim();
 }
 
-canvas.addEventListener("pointermove", updateAim);
+function dragAim(event) {
+  const rect = canvas.getBoundingClientRect();
+
+  aim.x += (event.clientX - lastX) * W / rect.width;
+  aim.y += (event.clientY - lastY) * H / rect.height;
+  lastX = event.clientX;
+  lastY = event.clientY;
+
+  clampAim();
+}
+
+canvas.addEventListener("pointermove", event => {
+  if (event.pointerType === "mouse") updateAim(event);
+  else if (dragging) dragAim(event);
+});
 
 canvas.addEventListener("pointerdown", event => {
-  updateAim(event);
+  if (event.pointerType === "mouse") {
+    updateAim(event);
+    if (running) shoot();
+    return;
+  }
+
+  dragging = true;
+  lastX = event.clientX;
+  lastY = event.clientY;
+  canvas.setPointerCapture(event.pointerId);
+});
+
+canvas.addEventListener("pointerup", event => {
+  if (event.pointerType === "mouse" || !dragging) return;
+
+  dragging = false;
   if (running) shoot();
+});
+
+canvas.addEventListener("pointercancel", () => {
+  dragging = false;
 });
 
 window.addEventListener("keydown", event => {
@@ -496,18 +580,14 @@ window.addEventListener("keydown", event => {
 function startGame() {
   if (countdownActive) return;
 
-  if (gameOver) {
-    score = 0;
-    level = 1;
-    arrows = 10;
-    arrow = null;
-    particles = [];
-    targetY = 260;
-    targetDir = 1;
-    gameOver = false;
-  }
+  score = 0;
+  arrows = 10;
+  arrow = null;
+  particles = [];
+  targetY = 260;
+  targetDir = 1;
+  timeLeft = roundTime();
 
-  timeLeft = 60;
   updateHUD();
   $("overlay").classList.add("hidden");
   beginCountdown();
@@ -520,6 +600,49 @@ $("soundBtn").addEventListener("click", () => {
   $("soundBtn").textContent = soundOn ? "🔊 SOUND ON" : "🔇 SOUND OFF";
   if (soundOn) beep(500);
 });
+
+const gameEl = document.querySelector(".game");
+
+function isNativeFull() {
+  return document.fullscreenElement || document.webkitFullscreenElement;
+}
+
+function setFull(on) {
+  gameEl.classList.toggle("full", on);
+  $("fullBtn").textContent = on ? "✕ EXIT FULLSCREEN" : "⛶ FULLSCREEN";
+}
+
+function toggleFull() {
+  if (isNativeFull()) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    return;
+  }
+
+  if (gameEl.classList.contains("full")) {
+    setFull(false);
+    return;
+  }
+
+  const request = gameEl.requestFullscreen || gameEl.webkitRequestFullscreen;
+
+  setFull(true);
+
+  if (request) {
+    const result = request.call(gameEl);
+    if (result && result.catch) result.catch(() => {});
+  }
+}
+
+function syncFull() {
+  if (!isNativeFull()) setFull(false);
+}
+
+$("fullBtn").addEventListener("click", toggleFull);
+document.addEventListener("fullscreenchange", syncFull);
+document.addEventListener("webkitfullscreenchange", syncFull);
+
+$("overlayText").textContent = "Level " + level + " - goal " + goal() + " points";
+$("startBtn").textContent = "▶ START LEVEL " + level;
 
 updateHUD();
 loop();
