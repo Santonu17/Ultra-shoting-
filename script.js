@@ -1,4 +1,3 @@
-
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -17,13 +16,21 @@ let particles = [];
 
 let aim = { x: 650, y: 250 };
 let audio = null;
+let targetY = 260;
+let targetDir = 1;
+let timeLeft = 60;
+let timerId = null;
+let countdownActive = false;
+let countdownValue = 3;
+let gameOver = false;
+const PREVIEW_STEPS = 40;
 
 function target() {
   const distance = 1 + Math.floor((level - 1) / 2);
 
   return {
     x: W - 130 - Math.min(distance - 1, 6) * 17,
-    y: 260,
+    y: targetY,
     r: Math.max(23, 43 - distance * 2),
     distance
   };
@@ -56,6 +63,7 @@ function updateHUD() {
   $("level").textContent = String(level).padStart(2, "0");
   $("arrows").textContent = arrows;
   $("distance").textContent = target().distance + "x";
+  $("time").textContent = timeLeft;
 }
 
 function message(text) {
@@ -154,10 +162,10 @@ function drawTarget() {
 
   // Stand
   ctx.fillStyle = "#67432f";
-  ctx.fillRect(t.x - 4, t.y + 5, 8, 155);
+  ctx.fillRect(t.x - 4, t.y + 5, 8, 410 - t.y);
 
   ctx.fillStyle = "#b88954";
-  ctx.fillRect(t.x - 25, t.y + 155, 50, 9);
+  ctx.fillRect(t.x - 25, 415, 50, 9);
 
   const rings = [
     [1, "#fff1c9"],
@@ -237,6 +245,109 @@ function burst(x, y) {
   }
 }
 
+function updateTarget() {
+  if (!running) return;
+
+  targetY += (1 + level * 0.4) * targetDir;
+
+  if (targetY > 300) {
+    targetY = 300;
+    targetDir = -1;
+  }
+
+  if (targetY < 110) {
+    targetY = 110;
+    targetDir = 1;
+  }
+}
+
+function drawTrajectory() {
+  if (!running || arrow) return;
+
+  const angle = Math.atan2(aim.y - 315, aim.x - 190);
+  let x = 190;
+  let y = 315;
+  let vx = Math.cos(angle) * 13;
+  let vy = Math.sin(angle) * 13;
+
+  for (let i = 0; i < PREVIEW_STEPS; i++) {
+    x += vx;
+    y += vy;
+    vy += 0.11;
+
+    if (x > W || y > H || y < 0) break;
+
+    if (i % 3 === 0) {
+      ctx.globalAlpha = 1 - i / PREVIEW_STEPS;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(x - 2, y - 2, 4, 4);
+    }
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+function drawCountdown() {
+  if (!countdownActive) return;
+
+  ctx.fillStyle = "#111a2c99";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = "#ff8b45";
+  ctx.font = "96px 'Press Start 2P', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(countdownValue, W / 2, H / 2);
+  ctx.textBaseline = "alphabetic";
+}
+
+function endRound(title) {
+  running = false;
+  gameOver = true;
+  arrow = null;
+  clearInterval(timerId);
+
+  $("overlayTitle").textContent = title;
+  $("overlayText").textContent = "Final score: " + score;
+  $("startBtn").textContent = "↻ PLAY AGAIN";
+  $("overlay").classList.remove("hidden");
+}
+
+function startTimer() {
+  clearInterval(timerId);
+
+  timerId = setInterval(() => {
+    if (!running) return;
+
+    timeLeft--;
+    updateHUD();
+
+    if (timeLeft <= 0) endRound("TIME UP!");
+  }, 1000);
+}
+
+function beginCountdown() {
+  countdownActive = true;
+  countdownValue = 3;
+  beep(500);
+
+  const step = setInterval(() => {
+    countdownValue--;
+
+    if (countdownValue > 0) {
+      beep(500);
+      return;
+    }
+
+    clearInterval(step);
+    countdownActive = false;
+    running = true;
+    beep(900);
+    message("Aim carefully and shoot!");
+    startTimer();
+  }, 1000);
+}
+
 function shoot() {
   if (!running || arrow || arrows <= 0) return;
 
@@ -288,14 +399,7 @@ function finishShot(hit, x, y) {
   arrow = null;
   updateHUD();
 
-  if (arrows <= 0) {
-    running = false;
-
-    $("overlayTitle").textContent = "ROUND OVER!";
-    $("overlayText").textContent = "Final score: " + score;
-    $("startBtn").textContent = "↻ PLAY AGAIN";
-    $("overlay").classList.remove("hidden");
-  }
+  if (arrows <= 0) endRound("ROUND OVER!");
 }
 
 function updateArrow() {
@@ -346,6 +450,7 @@ function drawParticles() {
 
 function loop() {
   updateArrow();
+  updateTarget();
   updateParticles();
 
   background();
@@ -356,8 +461,10 @@ function loop() {
     drawArrow(arrow.x, arrow.y, arrow.angle);
   }
 
+  drawTrajectory();
   drawAim();
   drawParticles();
+  drawCountdown();
 
   requestAnimationFrame(loop);
 }
@@ -387,18 +494,23 @@ window.addEventListener("keydown", event => {
 });
 
 function startGame() {
-  if (arrows <= 0) {
+  if (countdownActive) return;
+
+  if (gameOver) {
     score = 0;
     level = 1;
     arrows = 10;
     arrow = null;
     particles = [];
-    updateHUD();
+    targetY = 260;
+    targetDir = 1;
+    gameOver = false;
   }
 
-  running = true;
+  timeLeft = 60;
+  updateHUD();
   $("overlay").classList.add("hidden");
-  message("Aim carefully and shoot!");
+  beginCountdown();
 }
 
 $("startBtn").addEventListener("click", startGame);

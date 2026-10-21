@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
 
 * {
@@ -72,7 +71,7 @@ button:active {
 
 .hud {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -162,6 +161,10 @@ canvas {
 
   .hud {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hud div:last-child {
+    grid-column: span 2;
   }
 
   header {
